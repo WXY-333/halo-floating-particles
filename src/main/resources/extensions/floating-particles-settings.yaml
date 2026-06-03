@@ -30,6 +30,18 @@ spec:
               value: sakura
             - label: 水波涟漪
               value: ripple
+            - label: 流星雨
+              value: meteors
+            - label: 落叶飘落
+              value: leaves
+            - label: 粒子连线
+              value: network
+            - label: 星尘漂浮
+              value: stardust
+            - label: 彩纸飘落
+              value: confetti
+            - label: 细雨
+              value: rain
         - $formkit: select
           name: cursorEffect
           label: 鼠标动效
@@ -41,6 +53,18 @@ spec:
               value: fireworks
             - label: 水波涟漪
               value: ripple
+            - label: 拖尾光点
+              value: trail
+            - label: 跟随小星星
+              value: stars
+            - label: 光标星星跟随
+              value: preset-stars
+            - label: 点击爱心
+              value: hearts
+            - label: 鼠标光环
+              value: halo
+            - label: WebGL光标尾巴
+              value: webgl-tail
         - $formkit: number
           name: count
           label: 粒子数量

@@ -16,10 +16,13 @@ class HaloRipplePreset {
       resolution: 256,
       damping: 0.984,
       tension: 0.016,
-      rippleRadius: 5
+      rippleRadius: 5,
+      autoDrops: config.autoDrops === true,
+      interactive: config.interactive !== false
     };
     this.lastMouseTime = 0;
     this.animationId = 0;
+    this.autoDropTimer = 0;
     this.disposed = false;
     this.pointerMoveHandler = this.onPointerMove.bind(this);
     this.clickHandler = this.onClick.bind(this);
@@ -45,7 +48,7 @@ class HaloRipplePreset {
     this.canvas.style.height = "100%";
     this.canvas.style.pointerEvents = "none";
     this.canvas.style.zIndex = "2147483647";
-    this.canvas.style.mixBlendMode = "screen";
+    this.canvas.style.mixBlendMode = this.config.autoDrops ? "normal" : "screen";
     document.documentElement.appendChild(this.canvas);
 
     this.scene = new THREE.Scene();
@@ -56,6 +59,7 @@ class HaloRipplePreset {
     this.initWater();
     this.initPlane();
     this.bindEvents();
+    this.startAutoDrops();
     this.tick();
   }
 
@@ -120,9 +124,36 @@ class HaloRipplePreset {
   }
 
   bindEvents() {
-    window.addEventListener("pointermove", this.pointerMoveHandler, { passive: true });
-    window.addEventListener("click", this.clickHandler, { passive: true });
+    if (this.config.interactive) {
+      window.addEventListener("pointermove", this.pointerMoveHandler, { passive: true });
+      window.addEventListener("click", this.clickHandler, { passive: true });
+    }
     window.addEventListener("resize", this.resizeHandler);
+  }
+
+  startAutoDrops() {
+    if (!this.config.autoDrops) {
+      return;
+    }
+
+    this.addRipple(
+      random(window.innerWidth * 0.18, window.innerWidth * 0.82),
+      random(window.innerHeight * 0.18, window.innerHeight * 0.82),
+      0.36,
+      4
+    );
+
+    this.autoDropTimer = window.setInterval(() => {
+      if (document.hidden) {
+        return;
+      }
+      this.addRipple(
+        random(window.innerWidth * 0.08, window.innerWidth * 0.92),
+        random(window.innerHeight * 0.12, window.innerHeight * 0.88),
+        0.36,
+        4
+      );
+    }, Math.max(760, 1450 / this.config.speed));
   }
 
   onPointerMove(event) {
@@ -142,11 +173,11 @@ class HaloRipplePreset {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
   }
 
-  addRipple(x, y, strength) {
+  addRipple(x, y, strength, radiusOverride) {
     var resolution = this.config.resolution;
     var texX = Math.floor((x / window.innerWidth) * resolution);
     var texY = Math.floor((1 - y / window.innerHeight) * resolution);
-    var radius = this.config.rippleRadius;
+    var radius = radiusOverride || this.config.rippleRadius;
     var radiusSquared = radius * radius;
 
     for (var i = -radius; i <= radius; i++) {
@@ -209,6 +240,7 @@ class HaloRipplePreset {
   destroy() {
     this.disposed = true;
     window.cancelAnimationFrame(this.animationId);
+    window.clearInterval(this.autoDropTimer);
     window.removeEventListener("pointermove", this.pointerMoveHandler);
     window.removeEventListener("click", this.clickHandler);
     window.removeEventListener("resize", this.resizeHandler);

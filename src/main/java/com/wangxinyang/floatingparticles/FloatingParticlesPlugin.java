@@ -7,7 +7,7 @@ import run.halo.app.plugin.PluginContext;
 /**
  * Plugin main class to manage the lifecycle of the plugin.
  *
- * @author 王鑫扬
+ * @author Wangxinyng
  * @since 1.0.0
  */
 @Component

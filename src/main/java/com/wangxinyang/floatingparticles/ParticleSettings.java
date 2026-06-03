@@ -20,7 +20,8 @@ public record ParticleSettings(
             return "snow";
         }
         return switch (effect) {
-            case "none", "snow", "stars", "bubbles", "fireflies", "sakura", "ripple" -> effect;
+            case "none", "snow", "stars", "bubbles", "fireflies", "sakura", "ripple",
+                "meteors", "leaves", "network", "stardust", "confetti", "rain" -> effect;
             default -> "snow";
         };
     }
@@ -30,7 +31,8 @@ public record ParticleSettings(
             return "none";
         }
         return switch (cursorEffect) {
-            case "none", "fireworks", "ripple" -> cursorEffect;
+            case "none", "fireworks", "ripple", "trail", "stars", "preset-stars", "hearts", "halo",
+                "webgl-tail" -> cursorEffect;
             default -> "none";
         };
     }

@@ -8,7 +8,7 @@ spec:
   enabled: true
   requires: ">=2.23.0"
   author:
-    name: 王鑫扬
+    name: Wangxinyng
     website: https://github.com/WXY-333
   logo: logo.png
   settingName: floating-particles-settings
