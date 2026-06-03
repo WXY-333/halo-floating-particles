@@ -1,0 +1,9 @@
+apiVersion: plugin.halo.run/v1alpha1
+kind: ExtensionDefinition
+metadata:
+  name: floating-particles-head-extension
+spec:
+  extensionPointName: template-head-processor
+  className: com.wangxinyang.floatingparticles.FloatingParticlesHeadProcessor
+  displayName: "Floating Particles Head Extension"
+  description: "Injects the floating particles script into the theme head."

@@ -1,0 +1,23 @@
+# Refer https://docs.halo.run/developer-guide/plugin/basics/manifest
+
+apiVersion: plugin.halo.run/v1alpha1
+kind: Plugin
+metadata:
+  name: floating-particles
+spec:
+  enabled: true
+  requires: ">=2.23.0"
+  author:
+    name: 王鑫扬
+    website: https://github.com/WXY-333
+  logo: logo.png
+  settingName: floating-particles-settings
+  configMapName: floating-particles-configmap
+  homepage: https://github.com/WXY-333/Halo-floating-particles#readme
+  repo: https://github.com/WXY-333/Halo-floating-particles
+  issues: https://github.com/WXY-333/Halo-floating-particles/issues
+  displayName: "Floating Particles"
+  description: "为 Halo 前台页面添加可配置的粒子漂浮和鼠标点击动效。"
+  license:
+    - name: "GPL-3.0"
+      url: "https://github.com/WXY-333/Halo-floating-particles/blob/main/LICENSE"
