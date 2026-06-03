@@ -55,7 +55,7 @@
   var fireworkPressTimer = 0;
   var fireworkMultiplier = 0;
   var fireworkNormal = { x: 0, y: 0 };
-  var fireworkColours = ["#F73859", "#14FFEC", "#00E0FF", "#FF99FE", "#FAF15D", "#FFFFFF"];
+  var fireworkColours = ["#F73859", "#14FFEC", "#00E0FF", "#FF99FE", "#FAF15D"];
   var webglTail = null;
 
   function cleanupOldCanvases() {
@@ -943,7 +943,7 @@
         return;
       }
 
-      addFireworkBurst(randomInt(22, 36), event.clientX, event.clientY);
+      addFireworkBurst(randomInt(10, 20), event.clientX, event.clientY);
       fireworkLongPressed = false;
       window.clearTimeout(fireworkPressTimer);
       fireworkPressTimer = window.setTimeout(function () {
@@ -1256,15 +1256,14 @@
       var multiplier = fireworkLongPressed
         ? random(14 + fireworkMultiplier, 15 + fireworkMultiplier)
         : random(6, 12);
-      var velocity = (multiplier + Math.random() * 0.8) * speed;
+      var velocity = (multiplier + Math.random() * 0.5) * speed;
       fireworks.push({
         x: x,
         y: y,
         vx: Math.cos(angle) * velocity,
         vy: Math.sin(angle) * velocity,
-        radius: random(11, 17) + 4 * Math.random(),
+        radius: randomInt(8, 12) + 3 * Math.random(),
         angle: angle,
-        alpha: Math.max(0.82, opacity),
         color: fireworkColours[Math.floor(Math.random() * fireworkColours.length)]
       });
     }
@@ -1283,10 +1282,9 @@
     ball.y += ball.vy - fireworkNormal.y;
     fireworkNormal.x = -2 / Math.max(width, 1) * Math.sin(ball.angle);
     fireworkNormal.y = -2 / Math.max(height, 1) * Math.cos(ball.angle);
-    ball.radius -= 0.18;
-    ball.alpha *= 0.982;
-    ball.vx *= 0.91;
-    ball.vy *= 0.91;
+    ball.radius -= 0.3;
+    ball.vx *= 0.9;
+    ball.vy *= 0.9;
   }
 
   function drawFirework(ball) {
@@ -1295,14 +1293,6 @@
     }
 
     ctx.save();
-    ctx.globalCompositeOperation = "lighter";
-    ctx.globalAlpha = ball.alpha * 0.24;
-    ctx.fillStyle = ball.color;
-    ctx.beginPath();
-    ctx.arc(ball.x, ball.y, ball.radius * 2.6, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.globalAlpha = ball.alpha;
     ctx.fillStyle = ball.color;
     ctx.beginPath();
     ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
@@ -1312,7 +1302,6 @@
 
   function isFireworkVisible(ball) {
     return ball.radius > 0 &&
-      ball.alpha > 0.04 &&
       ball.x + ball.radius >= 0 &&
       ball.x - ball.radius <= width &&
       ball.y + ball.radius >= 0 &&
@@ -1359,8 +1348,8 @@
 
       if (fireworkLongPressed) {
         fireworkMultiplier += 0.2;
-      } else if (fireworkMultiplier > 0) {
-        fireworkMultiplier = Math.max(0, fireworkMultiplier - 0.4);
+    } else if (fireworkMultiplier >= 0) {
+      fireworkMultiplier = Math.max(0, fireworkMultiplier - 0.4);
       }
     }
 
