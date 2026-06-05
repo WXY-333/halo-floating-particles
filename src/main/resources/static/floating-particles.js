@@ -1,4 +1,8 @@
 (function () {
+  if (window.__HALO_FLOATING_PARTICLES_DESTROY__) {
+    window.__HALO_FLOATING_PARTICLES_DESTROY__();
+  }
+
   var config = window.__HALO_FLOATING_PARTICLES__ || {};
   var effect = config.effect || "snow";
   var cursorEffect = config.cursorEffect || "none";
@@ -6,11 +10,35 @@
   var color = typeof config.color === "string" ? config.color : "#ffffff";
   var opacity = clampNumber(config.opacity, 0.55, 0.1, 1);
   var speed = clampNumber(config.speed, 1, 0.2, 3);
+  var enableMobile = config.enableMobile !== false;
+  var pageMode = config.pageMode || "all";
+  var includePaths = Array.isArray(config.includePaths) ? config.includePaths : [];
+  var excludePaths = Array.isArray(config.excludePaths) ? config.excludePaths : [];
+  var cursorStyleEnabled = config.cursorStyleEnabled === true;
+  var cursorStyleTemplate = config.cursorStyleTemplate || "pink-pig";
+  var cursorStyleImage = typeof config.cursorStyleImage === "string" ? config.cursorStyleImage : "";
+  var zIndex = Math.floor(clampNumber(config.zIndex, 2147483000, 0, 2147483647));
   var canvasId = "halo-floating-particles-canvas";
   var webglTailCanvasId = "halo-webgl-cursor-tail-canvas";
+  var cursorStyleElementId = "halo-floating-particles-cursor-style";
+  var cursorFollowerId = "halo-floating-particles-cursor-follower";
+  var cleanupTasks = [];
+  var destroyed = false;
   var rippleFallbackStarted = false;
 
+  window.__HALO_FLOATING_PARTICLES_DESTROY__ = destroyCurrentInstance;
+
   cleanupOldCanvases();
+
+  if (!shouldRunOnCurrentDevice()) {
+    return;
+  }
+
+  applyCursorStyle();
+
+  if (!shouldRunOnCurrentPath()) {
+    return;
+  }
 
   var useWebglRipple = (effect === "ripple" || cursorEffect === "ripple") && window.WebGLRenderingContext;
   if (useWebglRipple) {
@@ -18,7 +46,8 @@
   }
 
   var needsCanvas = effect !== "none" ||
-    ["fireworks", "ripple", "trail", "stars", "preset-stars", "hearts", "halo", "webgl-tail"].indexOf(cursorEffect) !== -1;
+    ["fireworks", "ripple", "trail", "stars", "preset-stars", "hearts", "halo", "webgl-tail",
+      "click-bubbles", "click-flowers", "rainbow-trail", "magnet"].indexOf(cursorEffect) !== -1;
   if (!needsCanvas) {
     return;
   }
@@ -31,7 +60,7 @@
   canvas.style.width = "100%";
   canvas.style.height = "100%";
   canvas.style.pointerEvents = "none";
-  canvas.style.zIndex = "2147483647";
+  canvas.style.zIndex = String(zIndex);
   canvas.style.mixBlendMode = effect === "fireflies" || (cursorEffect === "ripple" && effect !== "ripple") ? "screen" : "normal";
   document.documentElement.appendChild(canvas);
 
@@ -63,6 +92,8 @@
     removeElementById("sakura");
     removeElementById("halo-ripple-preset-canvas");
     removeElementById(webglTailCanvasId);
+    removeElementById(cursorStyleElementId);
+    removeElementById(cursorFollowerId);
     if (window.__HALO_RIPPLE_PRESET__) {
       window.__HALO_RIPPLE_PRESET__.destroy();
       window.__HALO_RIPPLE_PRESET__ = null;
@@ -80,6 +111,36 @@
     }
   }
 
+  function addManagedEvent(target, type, handler, options) {
+    target.addEventListener(type, handler, options);
+    cleanupTasks.push(function () {
+      target.removeEventListener(type, handler, options);
+    });
+  }
+
+  function setManagedInterval(handler, delay) {
+    var intervalId = window.setInterval(handler, delay);
+    cleanupTasks.push(function () {
+      window.clearInterval(intervalId);
+    });
+    return intervalId;
+  }
+
+  function destroyCurrentInstance() {
+    destroyed = true;
+    window.cancelAnimationFrame(animationId);
+    window.clearInterval(pageRippleTimer);
+    window.clearTimeout(fireworkPressTimer);
+    cleanupTasks.forEach(function (cleanup) {
+      cleanup();
+    });
+    cleanupTasks = [];
+    cleanupOldCanvases();
+    if (window.__HALO_FLOATING_PARTICLES_DESTROY__ === destroyCurrentInstance) {
+      window.__HALO_FLOATING_PARTICLES_DESTROY__ = null;
+    }
+  }
+
   function clampNumber(value, fallback, min, max) {
     var number = Number(value);
     if (!Number.isFinite(number)) {
@@ -92,6 +153,85 @@
     return Math.random() * (max - min) + min;
   }
 
+  function shouldRunOnCurrentDevice() {
+    if (enableMobile) {
+      return true;
+    }
+    return !isMobileViewport();
+  }
+
+  function isMobileViewport() {
+    var coarsePointer = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+    var narrowViewport = Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 768;
+    return coarsePointer || narrowViewport;
+  }
+
+  function shouldRunOnCurrentPath() {
+    var currentPath = normalizePath(window.location.pathname || "/");
+    if (pageMode === "include") {
+      return includePaths.some(function (path) {
+        return pathMatches(currentPath, path);
+      });
+    }
+    if (pageMode === "exclude") {
+      return !excludePaths.some(function (path) {
+        return pathMatches(currentPath, path);
+      });
+    }
+    return true;
+  }
+
+  function pathMatches(currentPath, rulePath) {
+    var normalizedRule = normalizePath(rulePath);
+    if (!normalizedRule) {
+      return false;
+    }
+    if (normalizedRule === "/") {
+      return currentPath === "/";
+    }
+    if (normalizedRule.endsWith("*")) {
+      return currentPath.indexOf(normalizedRule.slice(0, -1)) === 0;
+    }
+    return currentPath === normalizedRule || currentPath.indexOf(normalizedRule + "/") === 0;
+  }
+
+  function normalizePath(path) {
+    if (typeof path !== "string") {
+      return "";
+    }
+    var normalized = path.trim();
+    if (!normalized) {
+      return "";
+    }
+    normalized = normalized.split("?")[0].split("#")[0];
+    if (!normalized.startsWith("/")) {
+      normalized = "/" + normalized;
+    }
+    if (normalized.length > 1) {
+      normalized = normalized.replace(/\/+$/, "");
+    }
+    return normalized || "/";
+  }
+
+  function effectiveParticleCount() {
+    if (effect === "aurora") {
+      return Math.max(5, Math.min(12, Math.round(count * 0.08)));
+    }
+    if (effect === "constellations") {
+      return Math.max(18, Math.min(48, Math.round(count * 0.45)));
+    }
+    if (effect === "lightspots") {
+      return Math.max(12, Math.min(42, Math.round(count * 0.35)));
+    }
+    if (effect === "notes") {
+      return Math.max(14, Math.min(46, Math.round(count * 0.38)));
+    }
+    if (effect === "dandelion" || effect === "feathers") {
+      return Math.max(20, Math.min(72, Math.round(count * 0.62)));
+    }
+    return count;
+  }
+
   function getStaticBase() {
     var currentScript = document.currentScript;
     if (currentScript && currentScript.src) {
@@ -100,18 +240,195 @@
     return "/plugins/floating-particles/assets/static/";
   }
 
+  function applyCursorStyle() {
+    if (!cursorStyleEnabled) {
+      return;
+    }
+
+    var cursor = resolveCursorStyle();
+    if (!cursor.normal) {
+      return;
+    }
+
+    if (shouldUseCursorFollower(cursor.normal)) {
+      applyCursorFollower(cursor);
+      return;
+    }
+
+    var normalCursor = cursorDeclaration(cursor.normal, "auto");
+    var pointerCursor = cursorDeclaration(cursor.pointer || cursor.normal, "pointer");
+    var style = document.createElement("style");
+    style.id = cursorStyleElementId;
+    style.textContent = [
+      "html, body, body * { cursor: " + normalCursor + " !important; }",
+      "a, area, button, label, summary, select, option, [href], [onclick], [role=\"button\"], [role=\"link\"], input[type=\"button\"], input[type=\"submit\"], input[type=\"reset\"], input[type=\"checkbox\"], input[type=\"radio\"], input[type=\"file\"], input[type=\"range\"], input[type=\"color\"] { cursor: " + pointerCursor + " !important; }",
+      "input:not([type]), input[type=\"text\"], input[type=\"search\"], input[type=\"email\"], input[type=\"url\"], input[type=\"password\"], input[type=\"number\"], input[type=\"tel\"], textarea, [contenteditable=\"true\"] { cursor: auto !important; }"
+    ].join("\n");
+    document.head.appendChild(style);
+  }
+
+  function applyCursorFollower(cursor) {
+    var follower = document.createElement("img");
+    var normalSource = cursor.normal;
+    var pointerSource = cursor.pointer || cursor.normal;
+    var currentSource = normalSource;
+    var hiddenStyle = document.createElement("style");
+
+    follower.id = cursorFollowerId;
+    follower.alt = "";
+    follower.setAttribute("aria-hidden", "true");
+    follower.style.position = "fixed";
+    follower.style.left = "0";
+    follower.style.top = "0";
+    follower.style.width = "32px";
+    follower.style.height = "32px";
+    follower.style.objectFit = "contain";
+    follower.style.pointerEvents = "none";
+    follower.style.zIndex = String(Math.min(2147483647, zIndex + 10));
+    follower.style.transform = "translate3d(-100px, -100px, 0)";
+    follower.style.display = "none";
+
+    hiddenStyle.id = cursorStyleElementId;
+    hiddenStyle.textContent = [
+      "html, body, body * { cursor: none !important; }",
+      "input:not([type]), input[type=\"text\"], input[type=\"search\"], input[type=\"email\"], input[type=\"url\"], input[type=\"password\"], input[type=\"number\"], input[type=\"tel\"], textarea, [contenteditable=\"true\"] { cursor: auto !important; }"
+    ].join("\n");
+
+    follower.addEventListener("load", function () {
+      document.head.appendChild(hiddenStyle);
+      document.documentElement.appendChild(follower);
+    }, { once: true });
+
+    follower.addEventListener("error", function () {
+      removeElementById(cursorStyleElementId);
+      removeElementById(cursorFollowerId);
+    }, { once: true });
+
+    follower.src = normalSource;
+
+    addManagedEvent(window, "pointermove", function (event) {
+      var target = event.target;
+      var editable = isEditableElement(target);
+      var nextSource = !editable && isClickableElement(target) ? pointerSource : normalSource;
+
+      if (nextSource !== currentSource) {
+        currentSource = nextSource;
+        follower.src = currentSource;
+      }
+
+      follower.style.display = editable ? "none" : "block";
+      follower.style.transform = "translate3d(" + (event.clientX + 4) + "px, " + (event.clientY + 4) + "px, 0)";
+    }, { passive: true });
+
+    addManagedEvent(window, "pointerleave", function () {
+      follower.style.display = "none";
+    }, { passive: true });
+  }
+
+  function shouldUseCursorFollower(url) {
+    var normalized = stripUrlQuery(url).toLowerCase();
+    return normalized.endsWith(".gif") ||
+      normalized.endsWith(".webp") ||
+      normalized.endsWith(".apng");
+  }
+
+  function isClickableElement(target) {
+    return !!(target && target.closest && target.closest(
+      "a, area, button, label, summary, select, option, [href], [onclick], [role=\"button\"], [role=\"link\"], input[type=\"button\"], input[type=\"submit\"], input[type=\"reset\"], input[type=\"checkbox\"], input[type=\"radio\"], input[type=\"file\"], input[type=\"range\"], input[type=\"color\"]"
+    ));
+  }
+
+  function isEditableElement(target) {
+    return !!(target && target.closest && target.closest(
+      "input:not([type]), input[type=\"text\"], input[type=\"search\"], input[type=\"email\"], input[type=\"url\"], input[type=\"password\"], input[type=\"number\"], input[type=\"tel\"], textarea, [contenteditable=\"true\"]"
+    ));
+  }
+
+  function resolveCursorStyle() {
+    var customImage = cursorStyleImage.trim();
+    if (customImage) {
+      return {
+        normal: customImage,
+        pointer: customImage
+      };
+    }
+
+    var base = getStaticBase();
+    var templates = {
+      "pink-pig": {
+        normal: "cursors/pink-pig-ascii/Arrow.cur",
+        pointer: "cursors/pink-pig-ascii/Hand.cur"
+      },
+      "nyanko": {
+        normal: "cursors/nyanko-ascii/Arrow.cur",
+        pointer: "cursors/nyanko-ascii/Hand.cur"
+      },
+      "miku": {
+        normal: "cursors/miku-ascii/Arrow.gif",
+        pointer: "cursors/miku-ascii/Hand.gif"
+      },
+      "anya": {
+        normal: "cursors/anya-ascii/Arrow.gif",
+        pointer: "cursors/anya-ascii/Hand.gif"
+      },
+      "bocchi-nijika": {
+        normal: "cursors/bocchi-nijika-ascii/Arrow.gif",
+        pointer: "cursors/bocchi-nijika-ascii/Hand.gif"
+      },
+      "bocchi-gotou": {
+        normal: "cursors/bocchi-gotou-ascii/Arrow.gif",
+        pointer: "cursors/bocchi-gotou-ascii/Hand.gif"
+      },
+      "bocchi-ryo": {
+        normal: "cursors/bocchi-ryo-ascii/Arrow.gif",
+        pointer: "cursors/bocchi-ryo-ascii/Hand.gif"
+      },
+      "kuroko-tetsuya": {
+        normal: "cursors/kuroko-tetsuya-ascii/Arrow.cur",
+        pointer: "cursors/kuroko-tetsuya-ascii/Hand.gif"
+      }
+    };
+    var template = templates[cursorStyleTemplate] || templates["pink-pig"];
+    return {
+      normal: base + template.normal,
+      pointer: base + template.pointer
+    };
+  }
+
+  function cursorDeclaration(url, fallback) {
+    return "url(\"" + escapeCssUrl(url) + "\") 4 4, " + fallback;
+  }
+
+  function escapeCssUrl(url) {
+    return String(url)
+      .replace(/\\/g, "/")
+      .replace(/"/g, "\\\"")
+      .replace(/\n|\r/g, "");
+  }
+
+  function stripUrlQuery(url) {
+    return String(url).split("?")[0].split("#")[0];
+  }
+
   function startRipplePreset() {
     import(getStaticBase() + "ripple-preset.js")
       .then(function (module) {
+        if (destroyed) {
+          return;
+        }
         module.startHaloRipplePreset({
           color: color,
           opacity: opacity,
           speed: speed,
           autoDrops: effect === "ripple",
-          interactive: cursorEffect === "ripple"
+          interactive: cursorEffect === "ripple",
+          zIndex: Math.max(0, zIndex - 1)
         });
       })
       .catch(function (error) {
+        if (destroyed) {
+          return;
+        }
         console.warn("Failed to start WebGL ripple preset.", error);
         useWebglRipple = false;
         startPageRipples();
@@ -128,7 +445,7 @@
     tailCanvas.style.width = "100%";
     tailCanvas.style.height = "100%";
     tailCanvas.style.pointerEvents = "none";
-    tailCanvas.style.zIndex = "2147483646";
+    tailCanvas.style.zIndex = String(Math.max(0, zIndex - 1));
     tailCanvas.style.mixBlendMode = "screen";
     document.documentElement.appendChild(tailCanvas);
 
@@ -488,6 +805,81 @@
       return base;
     }
 
+    if (effect === "dandelion") {
+      base.radius = random(5, 10);
+      base.vx = random(-0.38, 0.18) * speed;
+      base.vy = -random(0.18, 0.62) * speed;
+      base.angle = random(0, Math.PI * 2);
+      base.spin = random(-0.018, 0.018) * speed;
+      base.swing = random(0.25, 0.85) * speed;
+      base.alpha = random(opacity * 0.3, opacity * 0.72);
+      return base;
+    }
+
+    if (effect === "feathers") {
+      base.radius = random(9, 18);
+      base.vx = random(-0.24, 0.36) * speed;
+      base.vy = random(0.22, 0.72) * speed;
+      base.angle = random(0, Math.PI * 2);
+      base.spin = random(-0.018, 0.018) * speed;
+      base.swing = random(0.45, 1.25) * speed;
+      base.alpha = random(opacity * 0.28, opacity * 0.62);
+      return base;
+    }
+
+    if (effect === "aurora") {
+      base.x = random(-width * 0.15, width * 0.85);
+      base.y = random(height * 0.02, height * 0.42);
+      base.length = random(width * 0.38, width * 0.82);
+      base.radius = random(40, 110);
+      base.vx = random(0.06, 0.18) * speed;
+      base.vy = random(-0.035, 0.045) * speed;
+      base.phaseSpeed = random(0.006, 0.018) * speed;
+      base.hue = random(155, 215);
+      base.alpha = random(opacity * 0.08, opacity * 0.22);
+      return base;
+    }
+
+    if (effect === "constellations") {
+      base.radius = random(1.4, 3.1);
+      base.vx = random(-0.12, 0.12) * speed;
+      base.vy = random(-0.08, 0.12) * speed;
+      base.twinkle = random(0.006, 0.02);
+      base.alpha = random(opacity * 0.35, opacity * 0.82);
+      return base;
+    }
+
+    if (effect === "notes") {
+      base.radius = random(14, 24);
+      base.vx = random(-0.18, 0.18) * speed;
+      base.vy = -random(0.28, 0.82) * speed;
+      base.angle = random(-0.2, 0.2);
+      base.spin = random(-0.006, 0.006) * speed;
+      base.symbol = randomMusicNote();
+      base.alpha = random(opacity * 0.22, opacity * 0.58);
+      return base;
+    }
+
+    if (effect === "lightspots") {
+      base.radius = random(10, 34);
+      base.vx = random(-0.16, 0.16) * speed;
+      base.vy = random(-0.12, 0.14) * speed;
+      base.twinkle = random(0.004, 0.014);
+      base.color = randomLightspotColor();
+      base.alpha = random(opacity * 0.12, opacity * 0.38);
+      return base;
+    }
+
+    if (effect === "firefly-cluster") {
+      base.radius = random(1.8, 4.2);
+      base.vx = random(-0.28, 0.28) * speed;
+      base.vy = random(-0.22, 0.22) * speed;
+      base.twinkle = random(0.014, 0.038);
+      base.cluster = Math.floor(random(0, 3));
+      base.alpha = random(opacity * 0.18, opacity * 0.72);
+      return base;
+    }
+
     base.radius = random(2, 6);
     base.vx = random(-0.25, 0.25) * speed;
     base.vy = random(0.45, 1.35) * speed;
@@ -505,6 +897,11 @@
     } else if (effect === "rain") {
       particle.x = random(0, width + 120);
       particle.y = -random(20, 160);
+    } else if (effect === "dandelion" || effect === "notes") {
+      particle.y = height + random(20, 120);
+    } else if (effect === "aurora") {
+      particle.x = -random(width * 0.25, width * 0.55);
+      particle.y = random(height * 0.02, height * 0.42);
     } else {
       particle.y = -random(5, 60);
     }
@@ -589,6 +986,79 @@
       return;
     }
 
+    if (effect === "dandelion") {
+      particle.angle += particle.spin;
+      particle.x += Math.sin(particle.phase * 1.4) * particle.swing;
+      if (particle.y < -60 || particle.x < -90 || particle.x > width + 90) {
+        resetParticle(particle);
+        particle.y = height + random(20, 120 + index);
+      }
+      return;
+    }
+
+    if (effect === "feathers") {
+      particle.angle += particle.spin + Math.sin(particle.phase) * 0.004;
+      particle.x += Math.sin(particle.phase * 1.2) * particle.swing;
+      if (particle.y > height + 80 || particle.x < -100 || particle.x > width + 100) {
+        resetParticle(particle);
+        particle.y = -random(10, 120 + index);
+      }
+      return;
+    }
+
+    if (effect === "aurora") {
+      particle.phase += particle.phaseSpeed;
+      if (particle.x > width + particle.length) {
+        resetParticle(particle);
+      }
+      return;
+    }
+
+    if (effect === "constellations") {
+      if (particle.x < 0 || particle.x > width) {
+        particle.vx *= -1;
+      }
+      if (particle.y < 0 || particle.y > height) {
+        particle.vy *= -1;
+      }
+      particle.x = Math.max(0, Math.min(width, particle.x));
+      particle.y = Math.max(0, Math.min(height, particle.y));
+      return;
+    }
+
+    if (effect === "notes") {
+      particle.angle += particle.spin;
+      particle.x += Math.sin(particle.phase * 1.25) * 0.45;
+      if (particle.y < -80 || particle.x < -80 || particle.x > width + 80) {
+        resetParticle(particle);
+        particle.y = height + random(20, 120 + index);
+      }
+      return;
+    }
+
+    if (effect === "lightspots") {
+      if (particle.x < -60) particle.x = width + 60;
+      if (particle.x > width + 60) particle.x = -60;
+      if (particle.y < -60) particle.y = height + 60;
+      if (particle.y > height + 60) particle.y = -60;
+      return;
+    }
+
+    if (effect === "firefly-cluster") {
+      var target = clusterPoint(particle.cluster);
+      particle.vx += (target.x - particle.x) * 0.00022 * speed;
+      particle.vy += (target.y - particle.y) * 0.00022 * speed;
+      particle.vx += Math.sin(particle.phase * 1.7) * 0.008 * speed;
+      particle.vy += Math.cos(particle.phase * 1.4) * 0.008 * speed;
+      particle.vx *= 0.992;
+      particle.vy *= 0.992;
+      if (particle.x < -80 || particle.x > width + 80 || particle.y < -80 || particle.y > height + 80) {
+        particle.x = random(0, width);
+        particle.y = random(0, height);
+      }
+      return;
+    }
+
     if (effect === "stars") {
       if (particle.x < -20) particle.x = width + 20;
       if (particle.x > width + 20) particle.x = -20;
@@ -614,7 +1084,8 @@
     ctx.save();
 
     var alpha = particle.alpha;
-    if (effect === "stars" || effect === "fireflies" || effect === "stardust") {
+    if (effect === "stars" || effect === "fireflies" || effect === "stardust" ||
+      effect === "constellations" || effect === "lightspots" || effect === "firefly-cluster") {
       alpha = Math.max(0.08, particle.alpha * (0.55 + Math.sin(particle.phase) * 0.45));
     }
 
@@ -642,6 +1113,20 @@
       drawConfetti(particle, alpha);
     } else if (effect === "rain") {
       drawRain(particle, alpha);
+    } else if (effect === "dandelion") {
+      drawDandelionSeed(particle, alpha);
+    } else if (effect === "feathers") {
+      drawFeather(particle, alpha);
+    } else if (effect === "aurora") {
+      drawAuroraRibbon(particle, alpha);
+    } else if (effect === "constellations") {
+      drawConstellationStar(particle, alpha);
+    } else if (effect === "notes") {
+      drawMusicNote(particle, alpha);
+    } else if (effect === "lightspots") {
+      drawLightspot(particle, alpha);
+    } else if (effect === "firefly-cluster") {
+      drawClusterFirefly(particle, alpha);
     } else if (effect === "fireflies") {
       drawFirefly(particle);
     } else {
@@ -656,6 +1141,26 @@
   function randomConfettiColor() {
     var palette = ["#ff5a7a", "#ffd166", "#36c5f0", "#8cf27f", "#c084fc", "#ffffff"];
     return palette[Math.floor(Math.random() * palette.length)];
+  }
+
+  function randomMusicNote() {
+    var notes = ["\u266a", "\u266b", "\u266c", "\u2669"];
+    return notes[Math.floor(Math.random() * notes.length)];
+  }
+
+  function randomLightspotColor() {
+    var palette = ["#fff4c2", "#dff7ff", "#ffe1f0", "#e6ffe8", "#ffffff"];
+    return palette[Math.floor(Math.random() * palette.length)];
+  }
+
+  function clusterPoint(index) {
+    var time = performance.now() * 0.00012 * speed;
+    var points = [
+      { x: width * 0.28 + Math.sin(time) * width * 0.08, y: height * 0.42 + Math.cos(time * 1.3) * height * 0.08 },
+      { x: width * 0.62 + Math.cos(time * 1.1) * width * 0.1, y: height * 0.34 + Math.sin(time * 1.5) * height * 0.07 },
+      { x: width * 0.48 + Math.sin(time * 0.8) * width * 0.12, y: height * 0.66 + Math.cos(time) * height * 0.08 }
+    ];
+    return points[index % points.length];
   }
 
   function drawNetworkLines() {
@@ -681,6 +1186,36 @@
         ctx.moveTo(first.x, first.y);
         ctx.lineTo(second.x, second.y);
         ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawConstellationLines() {
+    var maxDistance = Math.min(210, Math.max(120, width * 0.16));
+    var drawn = 0;
+
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    for (var i = 0; i < particles.length; i++) {
+      for (var j = i + 1; j < particles.length; j++) {
+        var first = particles[i];
+        var second = particles[j];
+        var dx = first.x - second.x;
+        var dy = first.y - second.y;
+        var distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance > maxDistance || drawn > count * 1.6) {
+          continue;
+        }
+
+        var lineAlpha = opacity * (1 - distance / maxDistance) * 0.28;
+        ctx.strokeStyle = hexToRgba(color, lineAlpha);
+        ctx.lineWidth = 0.55;
+        ctx.beginPath();
+        ctx.moveTo(first.x, first.y);
+        ctx.lineTo(second.x, second.y);
+        ctx.stroke();
+        drawn++;
       }
     }
     ctx.restore();
@@ -780,6 +1315,152 @@
     ctx.restore();
   }
 
+  function drawDandelionSeed(particle, alpha) {
+    var radius = particle.radius;
+
+    ctx.save();
+    ctx.translate(particle.x, particle.y);
+    ctx.rotate(particle.angle);
+    ctx.strokeStyle = hexToRgba(color.toLowerCase() === "#ffffff" ? "#f7fbff" : color, alpha * 0.72);
+    ctx.fillStyle = hexToRgba("#ffffff", alpha * 0.55);
+    ctx.lineWidth = 0.65;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, radius * 1.8);
+    ctx.stroke();
+
+    for (var i = 0; i < 7; i++) {
+      var angle = -Math.PI * 0.82 + i * Math.PI * 0.27;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+      ctx.stroke();
+    }
+
+    ctx.beginPath();
+    ctx.arc(0, radius * 1.95, Math.max(1, radius * 0.16), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawFeather(particle, alpha) {
+    var radius = particle.radius;
+
+    ctx.save();
+    ctx.translate(particle.x, particle.y);
+    ctx.rotate(particle.angle);
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = hexToRgba(color.toLowerCase() === "#ffffff" ? "#edf7ff" : color, alpha);
+    ctx.fillStyle = hexToRgba(color.toLowerCase() === "#ffffff" ? "#ffffff" : color, alpha * 0.26);
+    ctx.lineWidth = 0.9;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, radius * 0.36, radius * 1.45, 0.22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.globalAlpha = alpha * 0.65;
+    ctx.beginPath();
+    ctx.moveTo(0, -radius * 1.25);
+    ctx.quadraticCurveTo(radius * 0.12, 0, 0, radius * 1.28);
+    ctx.stroke();
+    for (var i = -4; i <= 4; i++) {
+      if (i === 0) continue;
+      var y = i * radius * 0.22;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo((i > 0 ? 1 : -1) * radius * 0.32, y + radius * 0.18);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawAuroraRibbon(particle, alpha) {
+    var wave = Math.sin(particle.phase) * 32;
+    var gradient = ctx.createLinearGradient(particle.x, particle.y, particle.x + particle.length, particle.y + wave);
+    gradient.addColorStop(0, "hsla(" + particle.hue + ", 90%, 62%, 0)");
+    gradient.addColorStop(0.22, "hsla(" + particle.hue + ", 90%, 62%, " + alpha + ")");
+    gradient.addColorStop(0.58, "hsla(" + (particle.hue + 38) + ", 88%, 66%, " + alpha * 0.75 + ")");
+    gradient.addColorStop(1, "hsla(" + (particle.hue + 72) + ", 90%, 64%, 0)");
+
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    ctx.strokeStyle = gradient;
+    ctx.lineWidth = particle.radius;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(particle.x, particle.y);
+    ctx.bezierCurveTo(
+      particle.x + particle.length * 0.25,
+      particle.y - particle.radius * 0.55 + wave,
+      particle.x + particle.length * 0.68,
+      particle.y + particle.radius * 0.35 - wave,
+      particle.x + particle.length,
+      particle.y + wave
+    );
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawConstellationStar(particle, alpha) {
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    ctx.fillStyle = hexToRgba(color, alpha);
+    ctx.beginPath();
+    ctx.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.globalAlpha = alpha * 0.22;
+    ctx.beginPath();
+    ctx.arc(particle.x, particle.y, particle.radius * 4.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawMusicNote(particle, alpha) {
+    ctx.save();
+    ctx.translate(particle.x, particle.y);
+    ctx.rotate(particle.angle);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = color.toLowerCase() === "#ffffff" ? "#f4f8ff" : color;
+    ctx.font = particle.radius + "px Georgia, serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(particle.symbol, 0, 0);
+    ctx.restore();
+  }
+
+  function drawLightspot(particle, alpha) {
+    var glow = particle.radius * (2.2 + Math.sin(particle.phase) * 0.35);
+    var gradient = ctx.createRadialGradient(particle.x, particle.y, 0, particle.x, particle.y, glow);
+    gradient.addColorStop(0, hexToRgba(particle.color, alpha));
+    gradient.addColorStop(0.42, hexToRgba(particle.color, alpha * 0.32));
+    gradient.addColorStop(1, hexToRgba(particle.color, 0));
+
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(particle.x, particle.y, glow, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawClusterFirefly(particle, alpha) {
+    var glow = particle.radius * 6.2;
+    var gradient = ctx.createRadialGradient(particle.x, particle.y, 0, particle.x, particle.y, glow);
+    gradient.addColorStop(0, "rgba(255, 252, 184, " + alpha + ")");
+    gradient.addColorStop(0.32, "rgba(168, 255, 142, " + alpha * 0.42 + ")");
+    gradient.addColorStop(1, "rgba(168, 255, 142, 0)");
+
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(particle.x, particle.y, glow, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
   function drawFirefly(particle) {
     var gradient = ctx.createRadialGradient(
       particle.x,
@@ -858,7 +1539,7 @@
   }
 
   function setupRippleEvents() {
-    window.addEventListener("pointermove", function (event) {
+    addManagedEvent(window, "pointermove", function (event) {
       var now = performance.now();
       if (now - lastRippleTime < 80) {
         return;
@@ -867,7 +1548,7 @@
       addRipple(event.clientX, event.clientY, 0.28);
     }, { passive: true });
 
-    window.addEventListener("click", function (event) {
+    addManagedEvent(window, "click", function (event) {
       addRipple(event.clientX, event.clientY, 0.58);
     }, { passive: true });
   }
@@ -890,7 +1571,7 @@
       random(height * 0.18, height * 0.82)
     );
 
-    pageRippleTimer = window.setInterval(function () {
+    pageRippleTimer = setManagedInterval(function () {
       if (document.hidden) {
         return;
       }
@@ -938,7 +1619,7 @@
   }
 
   function setupFireworkEvents() {
-    window.addEventListener("mousedown", function (event) {
+    addManagedEvent(window, "mousedown", function (event) {
       if (event.button !== undefined && event.button !== 0) {
         return;
       }
@@ -951,7 +1632,7 @@
       }, 500);
     }, { passive: true });
 
-    window.addEventListener("mouseup", function (event) {
+    addManagedEvent(window, "mouseup", function (event) {
       if (event.button !== undefined && event.button !== 0) {
         return;
       }
@@ -967,14 +1648,14 @@
       }
     }, { passive: true });
 
-    window.addEventListener("blur", function () {
+    addManagedEvent(window, "blur", function () {
       window.clearTimeout(fireworkPressTimer);
       fireworkLongPressed = false;
     }, { passive: true });
   }
 
   function setupCursorParticleEvents() {
-    window.addEventListener("pointermove", function (event) {
+    addManagedEvent(window, "pointermove", function (event) {
       cursorX = event.clientX;
       cursorY = event.clientY;
       cursorHaloVisible = true;
@@ -993,16 +1674,24 @@
         addPresetCursorStar(cursorX, cursorY);
         lastPresetStarX = cursorX;
         lastPresetStarY = cursorY;
+      } else if (cursorEffect === "rainbow-trail") {
+        addRainbowTrail(cursorX, cursorY);
       }
     }, { passive: true });
 
-    window.addEventListener("click", function (event) {
+    addManagedEvent(window, "click", function (event) {
       if (cursorEffect === "hearts") {
         addCursorHeart(event.clientX, event.clientY);
+      } else if (cursorEffect === "click-bubbles") {
+        addClickBubbles(event.clientX, event.clientY);
+      } else if (cursorEffect === "click-flowers") {
+        addClickFlowers(event.clientX, event.clientY);
+      } else if (cursorEffect === "magnet") {
+        addMagnetBurst(event.clientX, event.clientY);
       }
     }, { passive: true });
 
-    window.addEventListener("mouseleave", function () {
+    addManagedEvent(window, "mouseleave", function () {
       cursorHaloVisible = false;
     }, { passive: true });
   }
@@ -1058,6 +1747,108 @@
     trimCursorParticles();
   }
 
+  function addClickBubbles(x, y) {
+    var amount = Math.round(random(5, 9));
+    for (var i = 0; i < amount; i++) {
+      cursorParticles.push({
+        type: "bubble",
+        x: x + random(-12, 12),
+        y: y + random(-6, 8),
+        vx: random(-0.7, 0.7) * speed,
+        vy: random(-1.9, -0.85) * speed,
+        radius: random(8, 18),
+        wobble: random(0, Math.PI * 2),
+        wobbleSpeed: random(0.045, 0.08) * speed,
+        alpha: Math.max(0.5, opacity * 0.95),
+        color: color.toLowerCase() === "#ffffff" ? "#9ce7ff" : color
+      });
+    }
+    trimCursorParticles();
+  }
+
+  function addClickFlowers(x, y) {
+    var amount = Math.round(random(5, 8));
+    for (var i = 0; i < amount; i++) {
+      var angle = -Math.PI / 2 + random(-1.4, 1.4);
+      var velocity = random(1.2, 2.7) * speed;
+      cursorParticles.push({
+        type: "flower",
+        x: x + random(-8, 8),
+        y: y + random(-6, 6),
+        vx: Math.cos(angle) * velocity,
+        vy: Math.sin(angle) * velocity,
+        radius: random(7, 12),
+        angle: random(0, Math.PI * 2),
+        spin: random(-0.06, 0.06) * speed,
+        alpha: Math.max(0.72, opacity),
+        color: randomFlowerColor()
+      });
+    }
+    trimCursorParticles();
+  }
+
+  function addRainbowTrail(x, y) {
+    var hue = Math.floor((performance.now() * 0.22) % 360);
+    var amount = Math.round(random(1, 3));
+    for (var i = 0; i < amount; i++) {
+      cursorParticles.push({
+        type: "rainbow-trail",
+        x: x + random(-7, 7),
+        y: y + random(-7, 7),
+        vx: random(-0.45, 0.45) * speed,
+        vy: random(-0.45, 0.45) * speed,
+        radius: random(4, 9),
+        alpha: Math.max(0.58, opacity),
+        hue: (hue + i * 24 + random(-10, 10)) % 360
+      });
+    }
+    trimCursorParticles();
+  }
+
+  function addMagnetBurst(x, y) {
+    var amount = Math.round(random(34, 48));
+    for (var i = 0; i < amount; i++) {
+      var angle = Math.PI * 2 * Math.random();
+      var startDistance = random(72, 150);
+      var scatterSpeed = random(2.2, 5.2) * speed;
+      cursorParticles.push({
+        type: "magnet",
+        x: x + Math.cos(angle) * startDistance,
+        y: y + Math.sin(angle) * startDistance,
+        vx: Math.cos(angle) * scatterSpeed,
+        vy: Math.sin(angle) * scatterSpeed,
+        targetX: x + random(-10, 10),
+        targetY: y + random(-10, 10),
+        radius: random(3.2, 6.2),
+        alpha: Math.max(0.75, opacity),
+        life: 0,
+        gatherDuration: random(360, 520),
+        holdDuration: random(120, 190),
+        color: randomMagnetColor()
+      });
+    }
+
+    for (var j = 0; j < 8; j++) {
+      var innerAngle = Math.PI * 2 * Math.random();
+      cursorParticles.push({
+        type: "magnet",
+        x: x + Math.cos(innerAngle) * random(12, 34),
+        y: y + Math.sin(innerAngle) * random(12, 34),
+        vx: Math.cos(innerAngle) * random(2.8, 5.8) * speed,
+        vy: Math.sin(innerAngle) * random(2.8, 5.8) * speed,
+        targetX: x + random(-6, 6),
+        targetY: y + random(-6, 6),
+        radius: random(2.8, 5.4),
+        alpha: Math.max(0.72, opacity),
+        life: 0,
+        gatherDuration: random(260, 390),
+        holdDuration: random(100, 160),
+        color: randomMagnetColor()
+      });
+    }
+    trimCursorParticles();
+  }
+
   function shouldAddPresetStar(x, y) {
     var dx = x - lastPresetStarX;
     var dy = y - lastPresetStarY;
@@ -1085,8 +1876,8 @@
   }
 
   function trimCursorParticles() {
-    if (cursorParticles.length > 260) {
-      cursorParticles.splice(0, cursorParticles.length - 260);
+    if (cursorParticles.length > 320) {
+      cursorParticles.splice(0, cursorParticles.length - 320);
     }
   }
 
@@ -1097,6 +1888,16 @@
 
   function randomHeartColor() {
     var palette = ["#ff5a7a", "#ff7eb3", "#ff99ac", "#ff4d6d"];
+    return palette[Math.floor(Math.random() * palette.length)];
+  }
+
+  function randomFlowerColor() {
+    var palette = ["#ff9fc4", "#ffc6dd", "#ff7bac", "#ffd6a5", "#f8f7ff"];
+    return palette[Math.floor(Math.random() * palette.length)];
+  }
+
+  function randomMagnetColor() {
+    var palette = ["#F73859", "#14FFEC", "#00E0FF", "#FF99FE", "#FAF15D", "#7CFF6B", "#FFB84D", "#B388FF", "#FFFFFF"];
     return palette[Math.floor(Math.random() * palette.length)];
   }
 
@@ -1111,12 +1912,19 @@
   }
 
   function updateCursorParticle(particle) {
+    if (particle.type === "magnet") {
+      updateMagnetParticle(particle);
+      return;
+    }
+
     particle.x += particle.vx;
     particle.y += particle.vy;
-    particle.alpha *= particle.type === "heart" ? 0.976 : 0.94;
+    particle.alpha *= particle.type === "heart" || particle.type === "bubble" || particle.type === "flower" ? 0.976 : 0.94;
 
     if (particle.type === "trail") {
       particle.radius *= 0.965;
+    } else if (particle.type === "rainbow-trail") {
+      particle.radius *= 0.96;
     } else if (particle.type === "star") {
       particle.angle += particle.spin;
       particle.vy += 0.018 * speed;
@@ -1124,6 +1932,15 @@
     } else if (particle.type === "heart") {
       particle.vy += 0.012 * speed;
       particle.radius *= 0.992;
+    } else if (particle.type === "bubble") {
+      particle.wobble += particle.wobbleSpeed;
+      particle.x += Math.sin(particle.wobble) * 0.34;
+      particle.vy -= 0.004 * speed;
+      particle.radius *= 0.996;
+    } else if (particle.type === "flower") {
+      particle.angle += particle.spin;
+      particle.vy += 0.018 * speed;
+      particle.radius *= 0.99;
     } else if (particle.type === "preset-star") {
       particle.life += 16.7;
       var progress = Math.min(1, particle.life / particle.maxLife);
@@ -1134,6 +1951,43 @@
     }
   }
 
+  function updateMagnetParticle(particle) {
+    particle.life += 16.7;
+    var gatherEnd = particle.gatherDuration;
+    var scatterStart = gatherEnd + particle.holdDuration;
+
+    if (particle.life < gatherEnd) {
+      var dx = particle.targetX - particle.x;
+      var dy = particle.targetY - particle.y;
+      particle.vx += dx * 0.035 * speed;
+      particle.vy += dy * 0.035 * speed;
+      particle.vx *= 0.78;
+      particle.vy *= 0.78;
+      particle.alpha = Math.min(1, particle.alpha + 0.02);
+    } else if (particle.life < scatterStart) {
+      particle.vx *= 0.58;
+      particle.vy *= 0.58;
+      particle.x += (particle.targetX - particle.x) * 0.18;
+      particle.y += (particle.targetY - particle.y) * 0.18;
+      particle.alpha = Math.min(1, particle.alpha + 0.01);
+    } else {
+      if (!particle.scatterStarted) {
+        var angle = Math.atan2(particle.y - particle.targetY, particle.x - particle.targetX) + random(-0.8, 0.8);
+        var velocity = random(2.4, 5.8) * speed;
+        particle.vx = Math.cos(angle) * velocity;
+        particle.vy = Math.sin(angle) * velocity;
+        particle.scatterStarted = true;
+      }
+      particle.vx *= 0.94;
+      particle.vy *= 0.94;
+      particle.alpha *= 0.92;
+      particle.radius *= 0.972;
+    }
+
+    particle.x += particle.vx;
+    particle.y += particle.vy;
+  }
+
   function drawCursorParticle(particle) {
     if (particle.alpha <= 0.02 || particle.radius <= 0.4) {
       return;
@@ -1141,10 +1995,18 @@
 
     if (particle.type === "trail") {
       drawCursorTrail(particle);
+    } else if (particle.type === "rainbow-trail") {
+      drawRainbowTrail(particle);
     } else if (particle.type === "star") {
       drawCursorStar(particle);
     } else if (particle.type === "heart") {
       drawCursorHeart(particle);
+    } else if (particle.type === "bubble") {
+      drawCursorBubble(particle);
+    } else if (particle.type === "flower") {
+      drawCursorFlower(particle);
+    } else if (particle.type === "magnet") {
+      drawMagnetParticle(particle);
     } else if (particle.type === "preset-star") {
       drawPresetCursorStar(particle);
     }
@@ -1161,6 +2023,28 @@
     ctx.fillStyle = gradient;
     ctx.beginPath();
     ctx.arc(particle.x, particle.y, particle.radius * 3.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawRainbowTrail(particle) {
+    var hue = particle.hue % 360;
+    var color1 = "hsla(" + hue + ", 95%, 68%, " + particle.alpha + ")";
+    var color2 = "hsla(" + ((hue + 40) % 360) + ", 95%, 65%, " + (particle.alpha * 0.35) + ")";
+
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.shadowColor = color1;
+    ctx.shadowBlur = particle.radius * 3;
+    ctx.fillStyle = color1;
+    ctx.beginPath();
+    ctx.arc(particle.x, particle.y, particle.radius * 1.8, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.globalAlpha = particle.alpha * 0.45;
+    ctx.fillStyle = color2;
+    ctx.beginPath();
+    ctx.arc(particle.x, particle.y, particle.radius * 3, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
@@ -1185,6 +2069,68 @@
     }
     ctx.closePath();
     ctx.fill();
+    ctx.restore();
+  }
+
+  function drawCursorBubble(particle) {
+    var size = particle.radius * 2.2;
+    var shine = particle.radius * 0.72;
+
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    ctx.strokeStyle = hexToRgba(particle.color, particle.alpha * 0.7);
+    ctx.lineWidth = Math.max(1, particle.radius * 0.16);
+    ctx.shadowColor = hexToRgba(particle.color, particle.alpha * 0.25);
+    ctx.shadowBlur = particle.radius * 1.4;
+    ctx.beginPath();
+    ctx.arc(particle.x, particle.y, size, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = particle.alpha * 0.65;
+    ctx.fillStyle = "rgba(255, 255, 255, 0.14)";
+    ctx.beginPath();
+    ctx.arc(particle.x - shine, particle.y - shine * 0.65, particle.radius * 0.36, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawCursorFlower(particle) {
+    var petals = 5;
+    var innerRadius = particle.radius * 0.42;
+    var outerRadius = particle.radius * 1.2;
+
+    ctx.save();
+    ctx.translate(particle.x, particle.y);
+    ctx.rotate(particle.angle);
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = particle.alpha;
+    ctx.fillStyle = particle.color;
+    for (var i = 0; i < petals; i++) {
+      ctx.save();
+      ctx.rotate((Math.PI * 2 / petals) * i);
+      ctx.beginPath();
+      ctx.moveTo(0, -innerRadius);
+      ctx.quadraticCurveTo(outerRadius, -outerRadius * 0.3, 0, outerRadius);
+      ctx.quadraticCurveTo(-outerRadius, -outerRadius * 0.3, 0, -innerRadius);
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+    ctx.beginPath();
+    ctx.arc(0, 0, particle.radius * 0.38, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawMagnetParticle(particle) {
+    ctx.save();
+    ctx.globalAlpha = particle.alpha;
+    ctx.fillStyle = particle.color;
+    ctx.beginPath();
+    ctx.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255, 255, 255, " + (particle.alpha * 0.55) + ")";
+    ctx.lineWidth = Math.max(0.8, particle.radius * 0.18);
+    ctx.stroke();
     ctx.restore();
   }
 
@@ -1318,6 +2264,10 @@
   }
 
   function render() {
+    if (destroyed) {
+      return;
+    }
+
     ctx.clearRect(0, 0, width, height);
 
     if (effect !== "none" && effect !== "ripple") {
@@ -1328,6 +2278,8 @@
 
       if (effect === "network") {
         drawNetworkLines();
+      } else if (effect === "constellations") {
+        drawConstellationLines();
       }
     }
 
@@ -1348,13 +2300,15 @@
 
       if (fireworkLongPressed) {
         fireworkMultiplier += 0.2;
-    } else if (fireworkMultiplier >= 0) {
-      fireworkMultiplier = Math.max(0, fireworkMultiplier - 0.4);
+      } else if (fireworkMultiplier >= 0) {
+        fireworkMultiplier = Math.max(0, fireworkMultiplier - 0.4);
       }
     }
 
     if (cursorEffect === "trail" || cursorEffect === "stars" ||
-      cursorEffect === "preset-stars" || cursorEffect === "hearts") {
+      cursorEffect === "preset-stars" || cursorEffect === "hearts" ||
+      cursorEffect === "click-bubbles" || cursorEffect === "click-flowers" ||
+      cursorEffect === "rainbow-trail" || cursorEffect === "magnet") {
       cursorParticles = cursorParticles.filter(function (particle) {
         updateCursorParticle(particle);
         drawCursorParticle(particle);
@@ -1364,14 +2318,16 @@
 
     drawCursorHalo();
 
-    animationId = window.requestAnimationFrame(render);
+    if (!destroyed) {
+      animationId = window.requestAnimationFrame(render);
+    }
   }
 
   function init() {
     resize();
 
     if (effect !== "none" && effect !== "ripple") {
-      particles = Array.from({ length: count }, createParticle);
+      particles = Array.from({ length: effectiveParticleCount() }, createParticle);
     }
 
     if (!useWebglRipple) {
@@ -1396,15 +2352,17 @@
     }
 
     if (cursorEffect === "trail" || cursorEffect === "stars" ||
-      cursorEffect === "preset-stars" || cursorEffect === "hearts" || cursorEffect === "halo") {
+      cursorEffect === "preset-stars" || cursorEffect === "hearts" || cursorEffect === "halo" ||
+      cursorEffect === "click-bubbles" || cursorEffect === "click-flowers" ||
+      cursorEffect === "rainbow-trail" || cursorEffect === "magnet") {
       setupCursorParticleEvents();
     }
 
-    window.addEventListener("resize", resize);
+    addManagedEvent(window, "resize", resize);
     render();
   }
 
-  document.addEventListener("visibilitychange", function () {
+  addManagedEvent(document, "visibilitychange", function () {
     if (document.hidden) {
       window.clearInterval(pageRippleTimer);
       pageRippleTimer = 0;

@@ -1,5 +1,9 @@
 package com.wangxinyang.floatingparticles;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
+
 public record ParticleSettings(
     Boolean enabled,
     String effect,
@@ -7,12 +11,24 @@ public record ParticleSettings(
     Integer count,
     String color,
     Double opacity,
-    Double speed
+    Double speed,
+    Boolean enableMobile,
+    String pageMode,
+    String includePaths,
+    String excludePaths,
+    Boolean cursorStyleEnabled,
+    String cursorStyleTemplate,
+    String cursorStyleImage,
+    Integer zIndex
 ) {
     public static final String GROUP = "appearance";
 
     public boolean isEnabled() {
         return enabled == null || enabled;
+    }
+
+    public boolean isMobileEnabled() {
+        return enableMobile == null || enableMobile;
     }
 
     public String safeEffect() {
@@ -21,7 +37,9 @@ public record ParticleSettings(
         }
         return switch (effect) {
             case "none", "snow", "stars", "bubbles", "fireflies", "sakura", "ripple",
-                "meteors", "leaves", "network", "stardust", "confetti", "rain" -> effect;
+                "meteors", "leaves", "network", "stardust", "confetti", "rain",
+                "dandelion", "feathers", "aurora", "constellations", "notes", "lightspots",
+                "firefly-cluster" -> effect;
             default -> "snow";
         };
     }
@@ -32,7 +50,7 @@ public record ParticleSettings(
         }
         return switch (cursorEffect) {
             case "none", "fireworks", "ripple", "trail", "stars", "preset-stars", "hearts", "halo",
-                "webgl-tail" -> cursorEffect;
+                "webgl-tail", "click-bubbles", "click-flowers", "rainbow-trail", "magnet" -> cursorEffect;
             default -> "none";
         };
     }
@@ -57,5 +75,76 @@ public record ParticleSettings(
     public double safeSpeed() {
         var value = speed == null ? 1 : speed;
         return Math.max(0.2, Math.min(value, 3));
+    }
+
+    public String safePageMode() {
+        if (pageMode == null || pageMode.isBlank()) {
+            return "all";
+        }
+        return switch (pageMode) {
+            case "all", "include", "exclude" -> pageMode;
+            default -> "all";
+        };
+    }
+
+    public int safeZIndex() {
+        var value = zIndex == null ? 2147483000 : zIndex;
+        return Math.max(0, value);
+    }
+
+    public boolean isCursorStyleEnabled() {
+        return cursorStyleEnabled != null && cursorStyleEnabled;
+    }
+
+    public String safeCursorStyleTemplate() {
+        if (cursorStyleTemplate == null || cursorStyleTemplate.isBlank()) {
+            return "pink-pig";
+        }
+        return switch (cursorStyleTemplate) {
+            case "pink-pig", "nyanko", "miku", "anya", "bocchi-nijika", "bocchi-gotou",
+                "bocchi-ryo", "kuroko-tetsuya" -> cursorStyleTemplate;
+            default -> "pink-pig";
+        };
+    }
+
+    public String safeCursorStyleImage() {
+        if (cursorStyleImage == null || cursorStyleImage.isBlank()) {
+            return "";
+        }
+        var value = cursorStyleImage.trim();
+        var lowerValue = value.toLowerCase(Locale.ROOT);
+        if (lowerValue.startsWith("javascript:") || lowerValue.startsWith("data:")
+            || lowerValue.split("[?#]", 2)[0].endsWith(".ani")) {
+            return "";
+        }
+        return value;
+    }
+
+    public List<String> safeIncludePaths() {
+        return safePathLines(includePaths);
+    }
+
+    public List<String> safeExcludePaths() {
+        return safePathLines(excludePaths);
+    }
+
+    private List<String> safePathLines(String value) {
+        if (value == null || value.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(value.split("\\R"))
+            .map(String::trim)
+            .filter(path -> !path.isBlank())
+            .map(this::normalizePath)
+            .distinct()
+            .limit(60)
+            .toList();
+    }
+
+    private String normalizePath(String path) {
+        if (!path.startsWith("/")) {
+            return "/" + path;
+        }
+        return path;
     }
 }

@@ -18,7 +18,8 @@ class HaloRipplePreset {
       tension: 0.016,
       rippleRadius: 5,
       autoDrops: config.autoDrops === true,
-      interactive: config.interactive !== false
+      interactive: config.interactive !== false,
+      zIndex: Math.floor(clampNumber(config.zIndex, 2147483000, 0, 2147483647))
     };
     this.lastMouseTime = 0;
     this.animationId = 0;
@@ -47,7 +48,7 @@ class HaloRipplePreset {
     this.canvas.style.width = "100%";
     this.canvas.style.height = "100%";
     this.canvas.style.pointerEvents = "none";
-    this.canvas.style.zIndex = "2147483647";
+    this.canvas.style.zIndex = String(this.config.zIndex);
     this.canvas.style.mixBlendMode = this.config.autoDrops ? "normal" : "screen";
     document.documentElement.appendChild(this.canvas);
 

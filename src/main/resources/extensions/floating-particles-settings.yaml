@@ -11,6 +11,11 @@ spec:
           name: enabled
           label: 开启前台动效
           value: true
+        - $formkit: checkbox
+          name: enableMobile
+          label: 在移动端启用
+          value: true
+          help: 关闭后，手机和平板等小屏设备将不加载前台动效。
         - $formkit: select
           name: effect
           label: 粒子效果
@@ -42,6 +47,20 @@ spec:
               value: confetti
             - label: 细雨
               value: rain
+            - label: 蒲公英飘散
+              value: dandelion
+            - label: 羽毛飘落
+              value: feathers
+            - label: 极光流动
+              value: aurora
+            - label: 星座连线
+              value: constellations
+            - label: 漂浮音符
+              value: notes
+            - label: 光斑漂浮
+              value: lightspots
+            - label: 萤火虫聚散
+              value: firefly-cluster
         - $formkit: select
           name: cursorEffect
           label: 鼠标动效
@@ -65,6 +84,68 @@ spec:
               value: halo
             - label: WebGL光标尾巴
               value: webgl-tail
+            - label: 点击气泡
+              value: click-bubbles
+            - label: 点击小花
+              value: click-flowers
+            - label: 鼠标彩虹拖尾
+              value: rainbow-trail
+            - label: 鼠标磁吸粒子
+              value: magnet
+        - $formkit: checkbox
+          name: cursorStyleEnabled
+          label: 启用鼠标样式
+          value: false
+          help: 开启后会替换前台页面的默认鼠标光标。启用鼠标样式默认全站使用，不受下方粒子效果页面生效范围影响。
+        - $formkit: select
+          name: cursorStyleTemplate
+          label: 鼠标光标模板
+          value: pink-pig
+          help: 选择插件内置的个性化鼠标光标模板。推荐使用 CUR 或 GIF 格式，PNG、WebP、SVG 等图片格式次之。
+          options:
+            - label: 粉色小猪
+              value: pink-pig
+            - label: 猫咪老师
+              value: nyanko
+            - label: Miku
+              value: miku
+            - label: 阿尼亚
+              value: anya
+            - label: 孤独摇滚 - 伊地知虹夏
+              value: bocchi-nijika
+            - label: 孤独摇滚 - 后藤独
+              value: bocchi-gotou
+            - label: 孤独摇滚 - 山田凉
+              value: bocchi-ryo
+            - label: 黑子哲也
+              value: kuroko-tetsuya
+        - $formkit: attachment
+          name: cursorStyleImage
+          label: 自定义鼠标图片
+          value: ""
+          help: 请上传 CUR、GIF 鼠标样式文件。
+        - $formkit: select
+          name: pageMode
+          label: 粒子效果页面生效范围
+          value: all
+          help: 可以选择全站启用、仅指定路径启用，或排除指定路径。
+          options:
+            - label: 全站启用
+              value: all
+            - label: 仅指定路径启用
+              value: include
+            - label: 排除指定路径
+              value: exclude
+        - $formkit: textarea
+          name: includePaths
+          label: 指定启用路径
+          value: ""
+          help: 每行填写一个路径，例如 / 或 /about。选择“仅指定路径启用”时生效。
+        - $formkit: textarea
+          name: excludePaths
+          label: 排除路径
+          value: ""
+          help: 每行填写一个路径，例如 /archives 或 /links。选择“排除指定路径”时生效。
         - $formkit: number
           name: count
           label: 粒子数量
@@ -90,3 +171,11 @@ spec:
           min: 0.2
           max: 3
           step: 0.1
+        - $formkit: number
+          name: zIndex
+          label: 动效层级
+          value: 2147483000
+          min: 0
+          max: 2147483647
+          step: 1
+          help: 如果动效盖住菜单、搜索框或弹窗，可以把这个数值调低。
