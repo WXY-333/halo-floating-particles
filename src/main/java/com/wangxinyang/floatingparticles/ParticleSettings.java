@@ -103,7 +103,8 @@ public record ParticleSettings(
         }
         return switch (cursorStyleTemplate) {
             case "pink-pig", "nyanko", "miku", "miku-blz", "anya", "bocchi-nijika", "bocchi-gotou",
-                "bocchi-ryo", "kuroko-tetsuya" -> cursorStyleTemplate;
+                "bocchi-ryo", "kuroko-tetsuya", "luo-xiaohei", "luo-tianyi", "rem", "firefly" ->
+                cursorStyleTemplate;
             default -> "bocchi-gotou";
         };
     }

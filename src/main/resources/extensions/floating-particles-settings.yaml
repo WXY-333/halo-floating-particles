@@ -122,6 +122,14 @@ spec:
               value: bocchi-ryo
             - label: 黑子哲也
               value: kuroko-tetsuya
+            - label: 罗小黑
+              value: luo-xiaohei
+            - label: 洛天依
+              value: luo-tianyi
+            - label: 蕾姆
+              value: rem
+            - label: 流荧
+              value: firefly
         - $formkit: attachment
           name: cursorStyleImage
           label: 自定义鼠标图片

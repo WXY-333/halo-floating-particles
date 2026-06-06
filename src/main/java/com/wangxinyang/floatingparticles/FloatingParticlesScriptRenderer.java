@@ -6,7 +6,7 @@ final class FloatingParticlesScriptRenderer {
         "/plugins/floating-particles/assets/static/floating-particles.js";
     private static final String SETTINGS_URL =
         "/apis/api.floating-particles.halo.run/v1alpha1/settings/latest";
-    static final String BUILD_VERSION = "1.0.8";
+    static final String BUILD_VERSION = "1.0.9";
 
     private FloatingParticlesScriptRenderer() {
     }

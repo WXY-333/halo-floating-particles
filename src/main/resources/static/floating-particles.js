@@ -444,6 +444,22 @@
       "kuroko-tetsuya": {
         normal: "cursors/kuroko-tetsuya-ascii/Arrow.cur",
         pointer: "cursors/kuroko-tetsuya-ascii/Hand.gif"
+      },
+      "luo-xiaohei": {
+        normal: "cursors/luo-xiaohei-ascii/Arrow.cur",
+        pointer: "cursors/luo-xiaohei-ascii/Hand.cur"
+      },
+      "luo-tianyi": {
+        normal: "cursors/luo-tianyi-ascii/Arrow.gif",
+        pointer: "cursors/luo-tianyi-ascii/Hand.gif"
+      },
+      "rem": {
+        normal: "cursors/rem-ascii/Arrow.gif",
+        pointer: "cursors/rem-ascii/Hand.gif"
+      },
+      "firefly": {
+        normal: "cursors/firefly-ascii/Arrow.gif",
+        pointer: "cursors/firefly-ascii/Hand.gif"
       }
     };
     var template = templates[cursorStyleTemplate] || templates["bocchi-gotou"];
