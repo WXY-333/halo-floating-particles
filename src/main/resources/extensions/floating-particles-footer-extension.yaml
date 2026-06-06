@@ -1,0 +1,9 @@
+apiVersion: plugin.halo.run/v1alpha1
+kind: ExtensionDefinition
+metadata:
+  name: floating-particles-footer-extension
+spec:
+  extensionPointName: template-footer-processor
+  className: com.wangxinyang.floatingparticles.FloatingParticlesFooterProcessor
+  displayName: "Floating Particles Footer Extension"
+  description: "Injects the floating particles script into the theme footer."

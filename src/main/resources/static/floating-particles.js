@@ -1,9 +1,45 @@
 (function () {
+  var initialConfig = window.__HALO_FLOATING_PARTICLES__ || {};
+  var runtimeSettingsUrl = initialConfig.runtimeSettingsUrl ||
+    "/apis/api.floating-particles.halo.run/v1alpha1/settings/latest";
+
+  if (Object.keys(initialConfig).length > 0) {
+    start(initialConfig);
+  } else {
+    fetchRuntimeSettings();
+  }
+
+  function fetchRuntimeSettings() {
+    if (!window.fetch) {
+      return;
+    }
+
+    window.fetch(runtimeSettingsUrl, {
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { "Accept": "application/json" }
+    })
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error("Floating Particles settings request failed.");
+        }
+        return response.json();
+      })
+      .then(function (config) {
+        window.__HALO_FLOATING_PARTICLES__ = config || {};
+        start(window.__HALO_FLOATING_PARTICLES__);
+      })
+      .catch(function () {
+        // Without runtime settings we avoid showing a default effect the user did not choose.
+      });
+  }
+
+  function start(config) {
   if (window.__HALO_FLOATING_PARTICLES_DESTROY__) {
     window.__HALO_FLOATING_PARTICLES_DESTROY__();
   }
 
-  var config = window.__HALO_FLOATING_PARTICLES__ || {};
+  var enabled = config.enabled !== false;
   var effect = config.effect || "snow";
   var cursorEffect = config.cursorEffect || "none";
   var count = clampNumber(config.count, 80, 20, 200);
@@ -15,8 +51,9 @@
   var includePaths = Array.isArray(config.includePaths) ? config.includePaths : [];
   var excludePaths = Array.isArray(config.excludePaths) ? config.excludePaths : [];
   var cursorStyleEnabled = config.cursorStyleEnabled === true;
-  var cursorStyleTemplate = config.cursorStyleTemplate || "pink-pig";
+  var cursorStyleTemplate = config.cursorStyleTemplate || "bocchi-gotou";
   var cursorStyleImage = typeof config.cursorStyleImage === "string" ? config.cursorStyleImage : "";
+  var cacheKey = typeof config.cacheKey === "string" ? config.cacheKey : "";
   var zIndex = Math.floor(clampNumber(config.zIndex, 2147483000, 0, 2147483647));
   var canvasId = "halo-floating-particles-canvas";
   var webglTailCanvasId = "halo-webgl-cursor-tail-canvas";
@@ -29,6 +66,10 @@
   window.__HALO_FLOATING_PARTICLES_DESTROY__ = destroyCurrentInstance;
 
   cleanupOldCanvases();
+
+  if (!enabled) {
+    return;
+  }
 
   if (!shouldRunOnCurrentDevice()) {
     return;
@@ -240,6 +281,14 @@
     return "/plugins/floating-particles/assets/static/";
   }
 
+  function localAssetUrl(path) {
+    var url = getStaticBase() + path;
+    if (!cacheKey) {
+      return url;
+    }
+    return url + (url.indexOf("?") === -1 ? "?" : "&") + "v=" + encodeURIComponent(cacheKey);
+  }
+
   function applyCursorStyle() {
     if (!cursorStyleEnabled) {
       return;
@@ -295,11 +344,17 @@
     ].join("\n");
 
     follower.addEventListener("load", function () {
+      if (destroyed) {
+        return;
+      }
       document.head.appendChild(hiddenStyle);
       document.documentElement.appendChild(follower);
     }, { once: true });
 
     follower.addEventListener("error", function () {
+      if (destroyed) {
+        return;
+      }
       removeElementById(cursorStyleElementId);
       removeElementById(cursorFollowerId);
     }, { once: true });
@@ -353,7 +408,6 @@
       };
     }
 
-    var base = getStaticBase();
     var templates = {
       "pink-pig": {
         normal: "cursors/pink-pig-ascii/Arrow.cur",
@@ -366,6 +420,10 @@
       "miku": {
         normal: "cursors/miku-ascii/Arrow.gif",
         pointer: "cursors/miku-ascii/Hand.gif"
+      },
+      "miku-blz": {
+        normal: "cursors/miku-blz/Arrow.gif",
+        pointer: "cursors/miku-blz/Hand.gif"
       },
       "anya": {
         normal: "cursors/anya-ascii/Arrow.gif",
@@ -388,10 +446,10 @@
         pointer: "cursors/kuroko-tetsuya-ascii/Hand.gif"
       }
     };
-    var template = templates[cursorStyleTemplate] || templates["pink-pig"];
+    var template = templates[cursorStyleTemplate] || templates["bocchi-gotou"];
     return {
-      normal: base + template.normal,
-      pointer: base + template.pointer
+      normal: localAssetUrl(template.normal),
+      pointer: localAssetUrl(template.pointer)
     };
   }
 
@@ -411,7 +469,7 @@
   }
 
   function startRipplePreset() {
-    import(getStaticBase() + "ripple-preset.js")
+    import(localAssetUrl("ripple-preset.js"))
       .then(function (module) {
         if (destroyed) {
           return;
@@ -2374,4 +2432,5 @@
   });
 
   init();
+  }
 })();

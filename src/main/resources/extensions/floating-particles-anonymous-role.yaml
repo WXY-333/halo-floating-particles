@@ -1,0 +1,22 @@
+apiVersion: v1alpha1
+kind: Role
+metadata:
+  name: floating-particles-anonymous-view
+  labels:
+    halo.run/role-template: "true"
+    halo.run/hidden: "true"
+    rbac.authorization.halo.run/aggregate-to-anonymous: "true"
+rules:
+  - apiGroups:
+      - api.floating-particles.halo.run
+    resources:
+      - settings
+    verbs:
+      - get
+      - list
+  - nonResourceURLs:
+      - /apis/api.floating-particles.halo.run/v1alpha1/settings
+      - /apis/api.floating-particles.halo.run/v1alpha1/settings/*
+      - /apis/api.floating-particles.halo.run/v1alpha1/settings/latest
+    verbs:
+      - get

@@ -23,7 +23,7 @@ class ParticleSettingsTest {
         assertEquals(0.2, settings.safeSpeed());
         assertEquals("all", settings.safePageMode());
         assertTrue(!settings.isCursorStyleEnabled());
-        assertEquals("pink-pig", settings.safeCursorStyleTemplate());
+        assertEquals("bocchi-gotou", settings.safeCursorStyleTemplate());
         assertEquals("", settings.safeCursorStyleImage());
         assertEquals(0, settings.safeZIndex());
         assertEquals(List.of("/about", "/archives"), settings.safeIncludePaths());
@@ -86,6 +86,24 @@ class ParticleSettingsTest {
             true, "all", "", "", true, "kuroko-tetsuya", "", 2147483000);
 
         assertEquals("kuroko-tetsuya", settings.safeCursorStyleTemplate());
+    }
+
+    @Test
+    void shouldAllowMikuBlzCursorTemplate() {
+        var settings = new ParticleSettings(true, "snow", "none", 80, "#ffffff", 0.55, 1.0,
+            true, "all", "", "", true, "miku-blz", "", 2147483000);
+
+        assertEquals("miku-blz", settings.safeCursorStyleTemplate());
+    }
+
+    @Test
+    void shouldChangeCacheKeyWhenCursorTemplateChanges() {
+        var miku = new ParticleSettings(true, "snow", "none", 80, "#ffffff", 0.55, 1.0,
+            true, "all", "", "", true, "miku", "", 2147483000);
+        var bocchi = new ParticleSettings(true, "snow", "none", 80, "#ffffff", 0.55, 1.0,
+            true, "all", "", "", true, "bocchi-nijika", "", 2147483000);
+
+        assertTrue(!miku.cacheKey().equals(bocchi.cacheKey()));
     }
 
     @Test

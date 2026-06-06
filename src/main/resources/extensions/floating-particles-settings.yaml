@@ -11,6 +11,7 @@ spec:
           name: enabled
           label: 开启前台动效
           value: true
+          help: 如果前台保存后暂时不生效，请先清理主题缓存、浏览器缓存，或使用 Ctrl + Shift + R 强制刷新页面。部分启用 PJAX、页面缓存或自定义渲染机制的特殊主题，可能需要刷新缓存后才会显示最新动效。
         - $formkit: checkbox
           name: enableMobile
           label: 在移动端启用
@@ -100,8 +101,8 @@ spec:
         - $formkit: select
           name: cursorStyleTemplate
           label: 鼠标光标模板
-          value: pink-pig
-          help: 选择插件内置的个性化鼠标光标模板。推荐使用 CUR 或 GIF 格式，PNG、WebP、SVG 等图片格式次之。
+          value: bocchi-gotou
+          help: 选择插件内置的个性化鼠标光标模板。
           options:
             - label: 粉色小猪
               value: pink-pig
@@ -109,6 +110,8 @@ spec:
               value: nyanko
             - label: Miku
               value: miku
+            - label: Miku BLZ
+              value: miku-blz
             - label: 阿尼亚
               value: anya
             - label: 孤独摇滚 - 伊地知虹夏

@@ -4,29 +4,25 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.thymeleaf.context.ITemplateContext;
 import org.thymeleaf.model.IModel;
-import org.thymeleaf.processor.element.IElementModelStructureHandler;
+import org.thymeleaf.model.IProcessableElementTag;
+import org.thymeleaf.processor.element.IElementTagStructureHandler;
 import reactor.core.publisher.Mono;
 import run.halo.app.plugin.ReactiveSettingFetcher;
-import run.halo.app.theme.dialect.TemplateHeadProcessor;
+import run.halo.app.theme.dialect.TemplateFooterProcessor;
 
 @Component
 @RequiredArgsConstructor
-public class FloatingParticlesHeadProcessor implements TemplateHeadProcessor {
+public class FloatingParticlesFooterProcessor implements TemplateFooterProcessor {
 
     private final ReactiveSettingFetcher settingFetcher;
 
     @Override
-    public Mono<Void> process(ITemplateContext context, IModel model,
-        IElementModelStructureHandler structureHandler) {
+    public Mono<Void> process(ITemplateContext context, IProcessableElementTag tag,
+        IElementTagStructureHandler structureHandler, IModel model) {
         return settingFetcher.fetch(ParticleSettings.GROUP, ParticleSettings.class)
-            .defaultIfEmpty(defaultSettings())
+            .defaultIfEmpty(FloatingParticlesHeadProcessor.defaultSettings())
             .doOnNext(settings -> addScriptIfEnabled(context, model, settings))
             .then();
-    }
-
-    static ParticleSettings defaultSettings() {
-        return new ParticleSettings(true, "snow", "none", 80, "#ffffff", 0.55, 1.0,
-            true, "all", "", "", false, "bocchi-gotou", "", 2147483000);
     }
 
     private void addScriptIfEnabled(ITemplateContext context, IModel model,

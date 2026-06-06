@@ -3,6 +3,7 @@ package com.wangxinyang.floatingparticles;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 public record ParticleSettings(
     Boolean enabled,
@@ -98,12 +99,12 @@ public record ParticleSettings(
 
     public String safeCursorStyleTemplate() {
         if (cursorStyleTemplate == null || cursorStyleTemplate.isBlank()) {
-            return "pink-pig";
+            return "bocchi-gotou";
         }
         return switch (cursorStyleTemplate) {
-            case "pink-pig", "nyanko", "miku", "anya", "bocchi-nijika", "bocchi-gotou",
+            case "pink-pig", "nyanko", "miku", "miku-blz", "anya", "bocchi-nijika", "bocchi-gotou",
                 "bocchi-ryo", "kuroko-tetsuya" -> cursorStyleTemplate;
-            default -> "pink-pig";
+            default -> "bocchi-gotou";
         };
     }
 
@@ -118,6 +119,25 @@ public record ParticleSettings(
             return "";
         }
         return value;
+    }
+
+    public String cacheKey() {
+        return Integer.toHexString(Objects.hash(
+            safeEffect(),
+            safeCursorEffect(),
+            safeCount(),
+            safeColor(),
+            safeOpacity(),
+            safeSpeed(),
+            isMobileEnabled(),
+            safePageMode(),
+            safeIncludePaths(),
+            safeExcludePaths(),
+            isCursorStyleEnabled(),
+            safeCursorStyleTemplate(),
+            safeCursorStyleImage(),
+            safeZIndex()
+        ));
     }
 
     public List<String> safeIncludePaths() {
